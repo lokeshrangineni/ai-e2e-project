@@ -1,0 +1,23 @@
+customer_id,name,email,city,state
+cust_001,Alice Johnson,alice.johnson@email.com,Austin,TX
+cust_002,Bob Smith,bob.smith@email.com,Seattle,WA
+cust_003,Carol Williams,carol.williams@email.com,Denver,CO
+cust_004,David Brown,david.brown@email.com,Portland,OR
+cust_005,Eva Martinez,eva.martinez@email.com,Chicago,IL
+cust_006,Frank Lee,frank.lee@email.com,Miami,FL
+cust_007,Grace Kim,grace.kim@email.com,Boston,MA
+cust_008,Henry Chen,henry.chen@email.com,San Francisco,CA
+cust_009,Iris Patel,iris.patel@email.com,New York,NY
+cust_010,Jack Wilson,jack.wilson@email.com,Los Angeles,CA
+cust_011,Karen Davis,karen.davis@email.com,Phoenix,AZ
+cust_012,Leo Garcia,leo.garcia@email.com,Houston,TX
+cust_013,Maria Rodriguez,maria.rodriguez@email.com,Philadelphia,PA
+cust_014,Nathan Taylor,nathan.taylor@email.com,San Diego,CA
+cust_015,Olivia Moore,olivia.moore@email.com,Dallas,TX
+cust_016,Paul Anderson,paul.anderson@email.com,Atlanta,GA
+cust_017,Quinn Thomas,quinn.thomas@email.com,Minneapolis,MN
+cust_018,Rachel Jackson,rachel.jackson@email.com,Detroit,MI
+cust_019,Sam White,sam.white@email.com,Baltimore,MD
+cust_020,Tina Harris,tina.harris@email.com,Charlotte,NC
+cust_021,Uma Patel,uma.patel@email.com,Washington,DC
+cust_022,Victor Nguyen,victor.nguyen@email.com,Las Vegas,NV

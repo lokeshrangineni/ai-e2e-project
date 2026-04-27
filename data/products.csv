@@ -1,0 +1,31 @@
+product_id,name,category,price,description
+prod_001,Nike Air Max 90,Footwear,129.99,Classic running shoes with visible Air cushioning
+prod_002,Sony WH-1000XM5,Electronics,349.99,Premium noise-canceling wireless headphones
+prod_003,Levi's 501 Original Jeans,Clothing,69.99,Classic straight leg denim jeans
+prod_004,Apple AirPods Pro,Electronics,249.99,Active noise cancellation earbuds with spatial audio
+prod_005,The North Face Puffer Jacket,Clothing,199.99,Insulated winter jacket with water-resistant finish
+prod_006,Adidas Ultraboost 22,Footwear,189.99,Responsive running shoes with Boost midsole
+prod_007,Samsung Galaxy Buds2 Pro,Electronics,229.99,Hi-Fi wireless earbuds with ANC
+prod_008,Patagonia Better Sweater,Clothing,139.0,Fleece jacket made from recycled materials
+prod_009,New Balance 574,Footwear,89.99,Classic lifestyle sneakers with ENCAP cushioning
+prod_010,Bose SoundLink Flex,Electronics,149.0,Portable waterproof Bluetooth speaker
+prod_011,Canada Goose Beanie,Accessories,150.0,Merino wool blend winter hat
+prod_012,Ray-Ban Aviator,Accessories,161.0,Classic pilot-style sunglasses
+prod_013,Yeti Rambler 20oz,Home,35.0,Vacuum insulated stainless steel tumbler
+prod_014,Kindle Paperwhite,Electronics,139.99,E-reader with 6.8 inch display and adjustable warm light
+prod_015,Nike Dri-FIT T-Shirt,Clothing,35.0,Moisture-wicking athletic tee
+prod_016,JBL Charge 5,Electronics,179.95,Portable Bluetooth speaker with powerbank feature
+prod_017,Herschel Supply Backpack,Accessories,79.99,Classic backpack with laptop sleeve
+prod_018,Allbirds Wool Runners,Footwear,110.0,Sustainable wool sneakers for everyday wear
+prod_019,Stanley Adventure Quencher,Home,45.0,40oz insulated tumbler with handle
+prod_020,Osprey Daylite Backpack,Accessories,65.0,Lightweight everyday carry backpack
+prod_021,Under Armour Hoodie,Clothing,55.0,Loose fit fleece hoodie with front pocket
+prod_022,Fitbit Charge 5,Electronics,149.95,Advanced fitness tracker with GPS
+prod_023,Carhartt Beanie,Accessories,24.99,Acrylic watch hat with fold-up cuff
+prod_024,Hydro Flask 32oz,Home,44.95,Vacuum insulated water bottle
+prod_025,Converse Chuck Taylor,Footwear,65.0,Classic canvas high-top sneakers
+prod_026,New Admin Product,Test,99.99,Added by admin
+prod_027,Test Product,Test,49.99,Test description
+prod_028,Admin Test Product,Test,99.99,Added by admin via test script
+prod_029,Test Product,Test,49.99,Test description
+prod_030,Admin Test Product,Test,99.99,Added by admin via test script
