@@ -42,20 +42,14 @@ class Settings(BaseSettings):
     langfuse_host: str = "http://localhost:3000"
     langfuse_enabled: bool = False
 
-    # Regex-based guardrails (always-on by default)
+    # Layer 1 — Regex guardrails (sync, zero latency)
     regex_guardrails_enabled: bool = True
 
-    # LLM-based guardrails
-    # guardian_provider: "granite" (Ollama local) | "claude" (Claude Haiku via Vertex AI)
-    granite_guardian_enabled: bool = False
-    guardian_provider: str = "granite"
-
-    # Granite Guardian via Ollama (provider=granite)
-    granite_guardian_model: str = "granite3-guardian:2b"
-    granite_guardian_endpoint: str = "http://localhost:11434"
-
-    # Claude Haiku via Vertex AI (provider=claude)
-    guardian_model_id: str = "claude-haiku-4-5@20251022"
+    # Layer 2 — NeMo Guardrails (Colang policy files, deterministic enforcement)
+    # Uses Claude Haiku via Vertex AI for intent classification only.
+    nemo_guardrails_enabled: bool = False
+    guardian_model_id: str = "claude-haiku-4-5@20251001"
+    guardian_region: str = "us-east5"  # Haiku is regional, not on 'global' endpoint
 
     # App version (for tracing)
     app_version: str = "0.1.0"
@@ -64,6 +58,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"  # silently ignore unrecognised env vars (e.g. old keys after refactors)
 
 
 settings = Settings()

@@ -1,0 +1,10 @@
+# Operator role — enforced via self_check_input (LLM binary yes/no classification).
+
+define flow self check input
+  $allowed = execute self_check_input
+  if not $allowed
+    bot refuse to respond
+    stop
+
+define bot refuse to respond
+  "🛡️ Blocked by: NeMo Guardrails - I can only help with customer support tasks such as product lookups, order status, and customer information."

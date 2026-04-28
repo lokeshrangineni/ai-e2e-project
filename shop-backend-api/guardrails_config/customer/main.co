@@ -1,0 +1,12 @@
+# Customer role — enforced via self_check_input (LLM binary yes/no classification).
+# The self_check_input action calls the LLM with the policy prompt from config.yml.
+# If the LLM answers "no" the flow fires and returns the canned refusal below.
+
+define flow self check input
+  $allowed = execute self_check_input
+  if not $allowed
+    bot refuse to respond
+    stop
+
+define bot refuse to respond
+  "🛡️ Blocked by: NeMo Guardrails - I can only help with product information, your orders, and your account questions. Is there something along those lines I can assist with?"

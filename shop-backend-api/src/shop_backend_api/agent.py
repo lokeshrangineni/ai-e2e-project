@@ -14,7 +14,7 @@ from langgraph.prebuilt import ToolNode
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 from .config import settings
-from .guardrails import run_input_guardrails, run_granite_guardrail, get_system_prompt
+from .guardrails import run_input_guardrails, run_nemo_guardrail, get_system_prompt
 
 
 class UserContext(TypedDict):
@@ -101,7 +101,7 @@ class ShopAgent:
 
         # Define nodes
         async def input_guardrail(state: AgentState) -> AgentState:
-            """Check input guardrails (regex always, Granite Guardian if enabled)."""
+            """Check input guardrails — regex (Layer 1) then NeMo (Layer 2)."""
             last_message = state["messages"][-1]
             if not isinstance(last_message, HumanMessage):
                 return state
@@ -119,20 +119,16 @@ class ShopAgent:
                         "guardrail_message": f"🛡️ Blocked by: Regex Guardrail\n\n{result.message}",
                     }
 
-            # Layer 2: LLM-based guardrail check (Granite or Claude Haiku)
-            if settings.granite_guardian_enabled:
+            # Layer 2: NeMo Guardrails — Colang policy enforcement
+            if settings.nemo_guardrails_enabled:
                 role = state["user_context"]["role"]
-                result = await run_granite_guardrail(user_input, role=role)
+                result = await run_nemo_guardrail(user_input, role=role)
                 if not result.allowed:
-                    label = {
-                        "granite": "Granite Guardian",
-                        "claude-haiku": "Claude Haiku Guardrail",
-                    }.get(result.source, result.source.title())
-                    print(f"[Guardrail] Blocked by {label}: {result.message}")
+                    print(f"[Guardrail] Blocked by NeMo ({role}): {result.message}")
                     return {
                         **state,
                         "guardrail_blocked": True,
-                        "guardrail_message": f"🛡️ Blocked by: {label}\n\n{result.message}",
+                        "guardrail_message": result.message or "🛡️ Blocked by: NeMo Guardrails\n\nI can only help with shopping-related questions.",
                     }
 
             return {**state, "guardrail_blocked": False, "guardrail_message": None}
