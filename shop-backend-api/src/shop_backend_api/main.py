@@ -14,6 +14,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from .config import settings
 from .agent import get_agent, cleanup_agent, UserContext
+from .observability import get_langfuse_handler, flush_langfuse_handler
 
 
 @asynccontextmanager
@@ -97,17 +98,26 @@ async def chat(
 
     conversation_id = request.conversation_id or str(uuid.uuid4())
 
+    lf_handler = get_langfuse_handler(
+        user_id=x_user_id,
+        session_id=conversation_id,
+        role=x_user_role,
+    )
+
     try:
         response = await agent.chat(
             message=request.message,
             user_context=user_context,
             conversation_history=None,  # TODO: Implement conversation history
+            callbacks=[lf_handler] if lf_handler else None,
         )
 
         return ChatResponse(response=response, conversation_id=conversation_id)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        flush_langfuse_handler(lf_handler)
 
 
 @app.post("/chat/stream")
@@ -143,12 +153,19 @@ async def chat_stream(
     conversation_id = request.conversation_id or str(uuid.uuid4())
     request_id = x_request_id or str(uuid.uuid4())
 
+    lf_handler = get_langfuse_handler(
+        user_id=x_user_id,
+        session_id=conversation_id,
+        role=x_user_role,
+    )
+
     async def event_generator() -> AsyncGenerator[dict, None]:
         try:
             async for token in agent.chat_stream(
                 message=request.message,
                 user_context=user_context,
                 conversation_history=None,
+                callbacks=[lf_handler] if lf_handler else None,
             ):
                 # Pre-serialize to JSON string: sse_starlette calls str() on data dict,
                 # producing Python repr with single quotes — not valid JSON.
@@ -167,6 +184,8 @@ async def chat_stream(
                 "event": "message",
                 "data": json.dumps({"type": "error", "message": str(e)}),
             }
+        finally:
+            flush_langfuse_handler(lf_handler)
 
     return EventSourceResponse(event_generator())
 

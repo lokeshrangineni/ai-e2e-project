@@ -45,10 +45,17 @@ class Settings(BaseSettings):
     # Regex-based guardrails (always-on by default)
     regex_guardrails_enabled: bool = True
 
-    # Granite Guardian (LLM-based guardrails)
+    # LLM-based guardrails
+    # guardian_provider: "granite" (Ollama local) | "claude" (Claude Haiku via Vertex AI)
     granite_guardian_enabled: bool = False
+    guardian_provider: str = "granite"
+
+    # Granite Guardian via Ollama (provider=granite)
     granite_guardian_model: str = "granite3-guardian:2b"
     granite_guardian_endpoint: str = "http://localhost:11434"
+
+    # Claude Haiku via Vertex AI (provider=claude)
+    guardian_model_id: str = "claude-haiku-4-5@20251022"
 
     # App version (for tracing)
     app_version: str = "0.1.0"

@@ -134,24 +134,52 @@ The UI will be available at `http://localhost:5173`.
 
 All backend settings are controlled via environment variables or a `.env` file in `shop-backend-api/`.
 
-Create `shop-backend-api/.env`:
+Copy the example and fill in your values:
+
+```bash
+cp shop-backend-api/.env.example shop-backend-api/.env
+```
+
+Full reference (mirrors `.env.example`):
 
 ```env
-# Claude via Vertex AI (required)
-ANTHROPIC_VERTEX_PROJECT_ID=your-gcp-project-id
-CLOUD_ML_REGION=us-east5
+# API Configuration
+API_HOST=0.0.0.0
+API_PORT=8000
+DEBUG=true
 
-# LLM model
+# Claude via Vertex AI (required)
+ANTHROPIC_VERTEX_PROJECT_ID=your-gcp-project
+CLOUD_ML_REGION=global
 MODEL_ID=claude-sonnet-4@20250514
 
-# Data directory (defaults to ../data relative to the package)
-SHOP_DATA_DIR=/path/to/ai-e2e-project/data
+# Claude via Anthropic API (fallback - only if ANTHROPIC_VERTEX_PROJECT_ID not set)
+# ANTHROPIC_API_KEY=sk-ant-...
+
+# MCP Server
+SHOP_DATA_DIR=../data
+
+# Langfuse (optional)
+LANGFUSE_ENABLED=false
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_HOST=http://localhost:3000
+
+# Regex-based guardrails (disable to let Granite Guardian demo shine)
+REGEX_GUARDRAILS_ENABLED=true
 
 # Granite Guardian — LLM-based guardrails (optional, disabled by default)
+# Pull model first: ollama pull granite3-guardian:2b
 GRANITE_GUARDIAN_ENABLED=false
 GRANITE_GUARDIAN_MODEL=granite3-guardian:2b
 GRANITE_GUARDIAN_ENDPOINT=http://localhost:11434
+
+# App versioning (for traces)
+APP_VERSION=0.1.0
+GUARDRAILS_VERSION=1.0.0
 ```
+
+> **Note:** The server must be restarted manually after any `.env` change — hot-reload only watches `.py` files.
 
 ---
 

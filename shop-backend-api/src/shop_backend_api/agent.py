@@ -119,16 +119,20 @@ class ShopAgent:
                         "guardrail_message": f"🛡️ Blocked by: Regex Guardrail\n\n{result.message}",
                     }
 
-            # Layer 2: Granite Guardian LLM check (only if enabled in config)
+            # Layer 2: LLM-based guardrail check (Granite or Claude Haiku)
             if settings.granite_guardian_enabled:
                 role = state["user_context"]["role"]
                 result = await run_granite_guardrail(user_input, role=role)
                 if not result.allowed:
-                    print(f"[Guardrail] Blocked by Granite Guardian (source={result.source}): {result.message}")
+                    label = {
+                        "granite": "Granite Guardian",
+                        "claude-haiku": "Claude Haiku Guardrail",
+                    }.get(result.source, result.source.title())
+                    print(f"[Guardrail] Blocked by {label}: {result.message}")
                     return {
                         **state,
                         "guardrail_blocked": True,
-                        "guardrail_message": f"🛡️ Blocked by: Granite Guardian\n\n{result.message}",
+                        "guardrail_message": f"🛡️ Blocked by: {label}\n\n{result.message}",
                     }
 
             return {**state, "guardrail_blocked": False, "guardrail_message": None}
@@ -247,6 +251,7 @@ class ShopAgent:
         message: str,
         user_context: UserContext,
         conversation_history: list | None = None,
+        callbacks: list | None = None,
     ) -> str:
         """Process a chat message and return the response."""
         messages = conversation_history or []
@@ -259,7 +264,8 @@ class ShopAgent:
             guardrail_message=None,
         )
 
-        result = await self.graph.ainvoke(state)
+        run_config = {"callbacks": callbacks} if callbacks else {}
+        result = await self.graph.ainvoke(state, run_config)
 
         # Get the last AI message
         for msg in reversed(result["messages"]):
@@ -273,6 +279,7 @@ class ShopAgent:
         message: str,
         user_context: UserContext,
         conversation_history: list | None = None,
+        callbacks: list | None = None,
     ):
         """Process a chat message and stream the response."""
         messages = conversation_history or []
@@ -285,7 +292,8 @@ class ShopAgent:
             guardrail_message=None,
         )
 
-        async for event in self.graph.astream_events(state, version="v2"):
+        run_config = {"callbacks": callbacks} if callbacks else {}
+        async for event in self.graph.astream_events(state, run_config, version="v2"):
             kind = event["event"]
 
             if kind == "on_chat_model_stream":
