@@ -1,16 +1,27 @@
 # ShopChat — AI-Powered Shopping Assistant
 
-A full-stack AI chatbot for a retail shop, built with **LangGraph**, **MCP (Model Context Protocol)**, **Claude on Vertex AI**, and a **React/Vite** frontend. Demonstrates role-based access control, streaming responses, multi-layer guardrails, and agentic tool use.
+A production-oriented learning project that demonstrates how to build, secure, observe, and deploy an **LLM-backed chatbot** on **OpenShift**. The assistant answers questions about products, orders, and customers using **Claude on Google Cloud Vertex AI**, with tool access via the **Model Context Protocol (MCP)**, multi-layer guardrails including **NVIDIA NeMo Guardrails**, observability through **Langfuse**, and agent orchestration with **LangGraph**.
+
+## Why This Project Exists
+
+The goal is hands-on experience with the **AI application stack** and **shipping to production** — not perfecting a specific business schema or UI. It mirrors a real internal assistant over enterprise data, covering:
+
+- **Streaming chat** (SSE) from a Python BFF to a React UI
+- **Tool-grounded answers** via MCP — the LLM calls structured tools instead of guessing
+- **Role-based access control** — customer, operator, and admin roles with different tool visibility and data access
+- **Defence-in-depth guardrails** — regex, NeMo Guardrails (Colang policies), and LLM system prompt
+- **LLM observability** — traces, latency, token counts, and cost signals via Langfuse
+- **OpenShift-ready** architecture with documented deployment patterns
 
 ---
 
-## Architecture Overview
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │  Browser  (React + Vite)                  :5173                 │
 │  - Role selector (customer / operator / admin)                  │
-│  - Streaming chat UI via SSE                                     │
+│  - Streaming chat UI via SSE                                    │
 └────────────────────────┬────────────────────────────────────────┘
                          │ POST /chat/stream  (SSE)
                          │ Headers: X-User-Role, X-User-Id, X-User-Name
@@ -26,10 +37,13 @@ A full-stack AI chatbot for a retail shop, built with **LangGraph**, **MCP (Mode
 │  │        └──────────[tools]─────────────────┘             │   │
 │  │                                                         │   │
 │  │  Guardrail layers:                                      │   │
-│  │    1. Regex (always active)                             │   │
-│  │    2. Granite Guardian LLM (optional, config-driven)    │   │
+│  │    1. Regex patterns (sync, zero latency)               │   │
+│  │    2. NeMo Guardrails + Claude Haiku (Colang policies)  │   │
+│  │    3. LLM system prompt (implicit, per-role)            │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                         │ stdio (MCP)                           │
+│                         │                                       │
+│  Langfuse ◄─── traces/spans via LangChain callback ────────   │
 └────────────────────────┬────────────────────────────────────────┘
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
@@ -46,22 +60,29 @@ A full-stack AI chatbot for a retail shop, built with **LangGraph**, **MCP (Mode
 
 ```
 ai-e2e-project/
-├── shop-ui/              # React + TypeScript + Vite frontend
-├── shop-backend-api/     # FastAPI backend with LangGraph agent
-│   └── src/shop_backend_api/
-│       ├── main.py       # FastAPI app, SSE endpoint
-│       ├── agent.py      # LangGraph workflow, MCP client
-│       ├── guardrails.py # Input validation (regex + Granite Guardian)
-│       └── config.py     # All configuration via env vars
-├── mcp-server/           # MCP tool server
+├── shop-ui/                  # React + TypeScript + Vite frontend
+├── shop-backend-api/         # FastAPI backend with LangGraph agent
+│   ├── src/shop_backend_api/
+│   │   ├── main.py           # FastAPI app, SSE streaming endpoint
+│   │   ├── agent.py          # LangGraph workflow, MCP client
+│   │   ├── guardrails.py     # Regex guardrails + NeMo wrapper
+│   │   ├── nemo_guardrails.py# NeMo Guardrails integration (LLMRails)
+│   │   ├── observability.py  # Langfuse callback handler
+│   │   └── config.py         # All configuration via env vars
+│   └── guardrails_config/    # Colang policy files (per role)
+│       ├── customer/         # config.yml + main.co
+│       ├── operator/         # config.yml + main.co
+│       └── admin/            # config.yml + main.co
+├── mcp-server/               # MCP tool server
 │   └── src/shop_mcp_server/
-│       ├── server.py     # Tool definitions + RBAC enforcement
-│       └── data.py       # CSV data access layer
-└── data/                 # CSV data files
-    ├── customers.csv
-    ├── orders.csv
-    ├── order_items.csv
-    └── products.csv
+│       ├── server.py         # Tool definitions + RBAC enforcement
+│       └── data.py           # CSV data access layer
+├── data/                     # CSV data files
+│   ├── customers.csv
+│   ├── orders.csv
+│   ├── order_items.csv
+│   └── products.csv
+└── project-requirements.md   # Full requirements document
 ```
 
 ---
@@ -70,57 +91,50 @@ ai-e2e-project/
 
 | Tool | Version | Purpose |
 |---|---|---|
-| Python | ≥ 3.11 | Backend & MCP server |
-| Node.js | ≥ 18 | Frontend |
+| Python | >= 3.11 | Backend and MCP server |
+| Node.js | >= 18 | Frontend |
 | `uv` | latest | Python package manager |
 | `npm` | latest | Node package manager |
-| Ollama | latest | Local LLM for Granite Guardian (optional) |
 | GCP account | — | Vertex AI / Claude access |
 
 ---
 
-## Starting the Services
+## Quick Start
 
-### 1. MCP Server (started automatically)
+### 1. Clone and configure
 
-The MCP server is spawned automatically by the backend as a subprocess — you do **not** need to start it manually.
+```bash
+git clone https://github.com/lokeshrangineni/ai-e2e-project.git
+cd ai-e2e-project
 
----
+# Create your environment file
+cp shop-backend-api/.env.example shop-backend-api/.env
+# Edit .env — at minimum set ANTHROPIC_VERTEX_PROJECT_ID
+```
 
-### 2. Shop Backend API
+### 2. Start the backend
 
 ```bash
 cd shop-backend-api
-
-# Install dependencies (first time only)
-uv sync
-
-# Start the server
-uv run uvicorn shop_backend_api.main:app --reload --reload-include="*.env" --host 0.0.0.0 --port 8000
+uv sync                    # install dependencies (first time)
+uv run uvicorn shop_backend_api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The API will be available at `http://localhost:8000`.
-Interactive API docs at `http://localhost:8000/docs`.
+The MCP server is spawned automatically as a subprocess — no separate start needed.
 
----
+API available at `http://localhost:8000` | Docs at `http://localhost:8000/docs`
 
-### 3. Shop UI (Frontend)
+### 3. Start the frontend
 
 ```bash
 cd shop-ui
-
-# Install dependencies (first time only)
-npm install
-
-# Start the dev server
+npm install                # first time only
 npm run dev
 ```
 
-The UI will be available at `http://localhost:5173`.
+UI available at `http://localhost:5173`
 
----
-
-## Stopping the Services
+### 4. Stop services
 
 | Service | How to stop |
 |---|---|
@@ -134,98 +148,113 @@ The UI will be available at `http://localhost:5173`.
 
 All backend settings are controlled via environment variables or a `.env` file in `shop-backend-api/`.
 
-Copy the example and fill in your values:
-
 ```bash
 cp shop-backend-api/.env.example shop-backend-api/.env
 ```
 
-Full reference (mirrors `.env.example`):
+### Required
 
-```env
-# API Configuration
-API_HOST=0.0.0.0
-API_PORT=8000
-DEBUG=true
+| Variable | Description | Example |
+|---|---|---|
+| `ANTHROPIC_VERTEX_PROJECT_ID` | GCP project with Claude access | `your-gcp-project` |
+| `CLOUD_ML_REGION` | Vertex AI region | `global` |
+| `MODEL_ID` | Claude model ID | `claude-sonnet-4@20250514` |
 
-# Claude via Vertex AI (required)
-ANTHROPIC_VERTEX_PROJECT_ID=your-gcp-project
-CLOUD_ML_REGION=global
-MODEL_ID=claude-sonnet-4@20250514
+### Optional — Langfuse (LLM Observability)
 
-# Claude via Anthropic API (fallback - only if ANTHROPIC_VERTEX_PROJECT_ID not set)
-# ANTHROPIC_API_KEY=sk-ant-...
+| Variable | Default | Description |
+|---|---|---|
+| `LANGFUSE_ENABLED` | `false` | Enable trace collection |
+| `LANGFUSE_PUBLIC_KEY` | — | Langfuse public key |
+| `LANGFUSE_SECRET_KEY` | — | Langfuse secret key |
+| `LANGFUSE_HOST` | `http://localhost:3000` | Langfuse server URL (cloud or self-hosted) |
 
-# MCP Server
-SHOP_DATA_DIR=../data
+### Optional — NeMo Guardrails (Layer 2)
 
-# Langfuse (optional)
-LANGFUSE_ENABLED=false
-LANGFUSE_PUBLIC_KEY=pk-lf-...
-LANGFUSE_SECRET_KEY=sk-lf-...
-LANGFUSE_HOST=http://localhost:3000
+| Variable | Default | Description |
+|---|---|---|
+| `NEMO_GUARDRAILS_ENABLED` | `false` | Enable Colang policy enforcement |
+| `GUARDIAN_MODEL_ID` | `claude-haiku-4-5@20251001` | LLM used for intent classification |
+| `GUARDIAN_REGION` | `us-east5` | Vertex AI region for Haiku (regional, not `global`) |
 
-# Regex-based guardrails (disable to let Granite Guardian demo shine)
-REGEX_GUARDRAILS_ENABLED=true
+### Optional — Regex Guardrails (Layer 1)
 
-# Granite Guardian — LLM-based guardrails (optional, disabled by default)
-# Pull model first: ollama pull granite3-guardian:2b
-GRANITE_GUARDIAN_ENABLED=false
-GRANITE_GUARDIAN_MODEL=granite3-guardian:2b
-GRANITE_GUARDIAN_ENDPOINT=http://localhost:11434
+| Variable | Default | Description |
+|---|---|---|
+| `REGEX_GUARDRAILS_ENABLED` | `true` | Enable fast regex pattern checks |
 
-# App versioning (for traces)
-APP_VERSION=0.1.0
-GUARDRAILS_VERSION=1.0.0
-```
-
-> **Note:** The server must be restarted manually after any `.env` change — hot-reload only watches `.py` files.
+> **Note:** The server must be restarted after `.env` changes — hot-reload only watches `.py` files.
 
 ---
 
-## Granite Guardian (LLM Guardrails)
+## Guardrails (Defence in Depth)
 
-The backend supports an optional second layer of input guardrails using [IBM Granite Guardian](https://huggingface.co/ibm-granite/granite-guardian-3.2-2b), a small specialist model for safety classification.
+The application uses a three-layer guardrail architecture. Each layer is independently configurable and catches progressively subtler attacks.
 
-### Enable it
+| Layer | Type | Latency | Config | Catches |
+|---|---|---|---|---|
+| 1 | **Regex patterns** | ~0ms | `REGEX_GUARDRAILS_ENABLED` | Obvious injection keywords, off-topic patterns, input length abuse |
+| 2 | **NeMo Guardrails** (Colang + Claude Haiku) | ~200-500ms | `NEMO_GUARDRAILS_ENABLED` | Rephrased injection, jailbreaks, off-topic (LLM-classified), cross-customer probing |
+| 3 | **LLM system prompt** | Built-in | Always active | Role enforcement, RBAC at reasoning level, general policy |
 
-**1. Pull the model via Ollama (first time only):**
+### How NeMo Guardrails works
 
-```bash
-ollama pull granite3-guardian:2b
-```
+[NVIDIA NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails) enforces policies defined in **Colang** (`.co`) files — plain text, version-controlled, and completely independent of the main LLM's system prompt. Claude Sonnet never sees these policies and cannot bypass them.
 
-**2. Set the environment variable:**
+**Flow per request:**
+1. User message arrives at the `input_guardrail` node in LangGraph
+2. NeMo sends a policy prompt to **Claude Haiku** asking: "Should this message be blocked?" (yes/no)
+3. If Haiku answers "yes" → NeMo's deterministic engine fires the matching Colang flow → returns a canned refusal
+4. If Haiku answers "no" → message passes through to Claude Sonnet for normal processing
 
-```bash
-GRANITE_GUARDIAN_ENABLED=true uv run uvicorn shop_backend_api.main:app --reload
-```
+**Per-role policies** live in `guardrails_config/`:
+- `customer/` — blocks off-topic, injection, jailbreak, cross-customer access, write attempts
+- `operator/` — blocks off-topic, injection, jailbreak, data modification attempts
+- `admin/` — only blocks injection and jailbreak (broadest access)
 
-Or add `GRANITE_GUARDIAN_ENABLED=true` to your `.env` file.
-
-### Guardrail layers (in order)
-
-| Layer | Type | Always active? | Catches |
-|---|---|---|---|
-| 1 | Regex | Yes | Obvious injection, off-topic, length abuse |
-| 2 | Granite Guardian LLM | Config-driven | Rephrased injection, jailbreaks, cross-customer probing |
-| 3 | LLM system prompt | Yes | Role enforcement, RBAC at reasoning level |
+To customize policies, edit the `config.yml` (prompt) and `main.co` (flow + refusal message) files. No code changes needed.
 
 ---
 
 ## Role-Based Access Control (RBAC)
 
-The UI lets you switch between three roles. Role is sent as an HTTP header on every request.
+The UI provides a role selector dropdown. Role is sent as HTTP headers on every request (mock auth for demo/POC — no real authentication).
 
-| Role | What they can access |
-|---|---|
-| `customer` | Their own orders and profile only |
-| `operator` | All customers and orders (read-only) |
-| `admin` | All customers, orders, and products (read + write) |
+| Role | Data Access | Operations |
+|---|---|---|
+| `customer` | Own orders and profile only | Read own data |
+| `operator` | All customers and orders | Read all data (for troubleshooting) |
+| `admin` | Everything | Read + write (add/edit products) |
 
-RBAC is enforced at **two levels**:
-1. **LLM system prompt** — instructs the LLM to refuse out-of-scope requests
-2. **MCP server** — hard-enforces tool access based on role, regardless of LLM behaviour
+RBAC is enforced at **three levels**:
+1. **Guardrails** — NeMo policies and regex patterns block disallowed requests before the LLM
+2. **LLM system prompt** — role-specific instructions tell the LLM to refuse out-of-scope requests
+3. **MCP server** — hard-enforces tool access based on role, regardless of LLM behaviour
+
+### Tool access matrix
+
+| Tool | Customer | Operator | Admin |
+|---|---|---|---|
+| `get_product` / `list_products` | Yes | Yes | Yes |
+| `get_order` | Own only | Any | Any |
+| `get_customer` | Own only | Any | Any |
+| `list_customers` | No | Yes | Yes |
+| `add_product` / `update_product` | No | No | Yes |
+
+---
+
+## LLM Observability (Langfuse)
+
+When enabled, every chat request emits **Langfuse traces** including:
+- User message metadata
+- Model calls (latency, token counts)
+- Tool/MCP invocations
+- Guardrail decisions
+- Version tags: `model_id`, `app_version`, `guardrails_version`
+
+Langfuse can be run as:
+- **Cloud**: Sign up at [cloud.langfuse.com](https://cloud.langfuse.com) and set the API keys
+- **Self-hosted on OpenShift**: Deploy using the [langfuse-k8s Helm chart](https://github.com/langfuse/langfuse-k8s) with OpenShift support
 
 ---
 
@@ -242,7 +271,7 @@ Streaming chat endpoint (Server-Sent Events).
 | `X-User-Role` | `customer` | `customer` \| `operator` \| `admin` |
 | `X-User-Id` | `cust_001` | User ID (e.g. `cust_021`) |
 | `X-User-Name` | `Guest` | Display name |
-| `X-Request-Id` | auto | Optional trace ID |
+| `X-Request-Id` | auto | Optional trace/correlation ID |
 
 **Body:**
 ```json
@@ -260,3 +289,34 @@ data: {"type": "error", "message": "..."}
 ### `GET /health`
 
 Returns `{"status": "healthy", "version": "0.1.0"}`.
+
+---
+
+## User Journeys
+
+| Role | Goal | What happens |
+|---|---|---|
+| **Customer** | Ask about products | Assistant lists products using MCP tools |
+| **Customer** | Check own orders | Assistant returns order status for the logged-in customer |
+| **Customer** | Access another customer's data | Refused — guardrails + RBAC block the request |
+| **Operator** | Look up any customer's orders | Assistant returns the data (operators have read access to all) |
+| **Operator** | Try to modify data | Refused — operators are read-only |
+| **Admin** | Add a new product | Assistant calls `add_product` tool and confirms |
+| **Any** | Prompt injection / jailbreak | Caught by regex or NeMo Guardrails before reaching the LLM |
+| **Any** | Off-topic question | Caught by NeMo Guardrails or LLM system prompt |
+
+---
+
+## Tech Stack
+
+| Component | Technology | License |
+|---|---|---|
+| Frontend | React + TypeScript + Vite | MIT |
+| Backend / BFF | Python + FastAPI | MIT / BSD |
+| LLM | Claude on Google Vertex AI | Commercial |
+| Agent orchestration | LangGraph | Apache 2.0 |
+| Tool protocol | Model Context Protocol (MCP) | Apache 2.0 |
+| Guardrails | NVIDIA NeMo Guardrails + Colang | Apache 2.0 |
+| Intent classifier | Claude Haiku on Vertex AI | Commercial |
+| Observability | Langfuse | MIT |
+| Deployment target | OpenShift (Kubernetes) | — |
