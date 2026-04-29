@@ -1,177 +1,140 @@
-"""Tests for RBAC enforcement."""
+"""Layer 1 tests for MCP server RBAC — no LLM calls, tests access control logic."""
 
-import json
 import pytest
-from shop_mcp_server.server import call_tool, check_rbac
+from unittest.mock import patch, MagicMock
+
+from shop_mcp_server.server import check_rbac, TOOLS_BY_ROLE
 
 
-class TestRBACCheck:
-    """Tests for the check_rbac function."""
+class TestToolsByRole:
+    """Verify tool availability per role is correctly configured."""
 
-    def test_customer_allowed_tools(self, customer_context):
-        """Customer can access read-only tools."""
-        allowed_tools = ["get_product", "list_products", "search_products"]
-        for tool in allowed_tools:
-            result = check_rbac(tool, {}, customer_context)
-            assert result is None, f"Customer should be allowed to use {tool}"
+    def test_customer_tools(self):
+        customer_tools = TOOLS_BY_ROLE["customer"]
+        assert "get_product" in customer_tools
+        assert "list_products" in customer_tools
+        assert "get_order" in customer_tools
+        assert "get_customer" in customer_tools
+        assert "get_customer_orders" in customer_tools
+        # Customer should NOT have write or admin tools
+        assert "add_product" not in customer_tools
+        assert "update_product" not in customer_tools
+        assert "list_customers" not in customer_tools
 
-    def test_customer_denied_admin_tools(self, customer_context):
-        """Customer cannot access admin tools."""
-        denied_tools = ["add_product", "update_product"]
-        for tool in denied_tools:
-            result = check_rbac(tool, {}, customer_context)
-            assert result is not None
-            assert result["error"] == "access_denied"
+    def test_operator_tools(self):
+        operator_tools = TOOLS_BY_ROLE["operator"]
+        assert "get_product" in operator_tools
+        assert "list_products" in operator_tools
+        assert "get_order" in operator_tools
+        assert "get_customer" in operator_tools
+        assert "list_customers" in operator_tools
+        # Operator should NOT have write tools
+        assert "add_product" not in operator_tools
+        assert "update_product" not in operator_tools
 
-    def test_customer_own_data_allowed(self, customer_context):
-        """Customer can access their own data."""
-        result = check_rbac("get_customer", {"customer_id": "cust_001"}, customer_context)
-        assert result is None
+    def test_admin_tools(self):
+        admin_tools = TOOLS_BY_ROLE["admin"]
+        assert "get_product" in admin_tools
+        assert "list_products" in admin_tools
+        assert "get_order" in admin_tools
+        assert "get_customer" in admin_tools
+        assert "list_customers" in admin_tools
+        assert "add_product" in admin_tools
+        assert "update_product" in admin_tools
 
-    def test_customer_other_data_denied(self, customer_context):
-        """Customer cannot access other customer's data."""
-        result = check_rbac("get_customer", {"customer_id": "cust_002"}, customer_context)
+
+class TestRBACToolAccess:
+    """Tool-level access control (no data dependency)."""
+
+    def test_customer_cannot_use_list_customers(self):
+        ctx = {"role": "customer", "user_id": "cust_001"}
+        result = check_rbac("list_customers", {}, ctx)
         assert result is not None
         assert result["error"] == "access_denied"
 
-    def test_operator_any_customer_allowed(self, operator_context):
-        """Operator can access any customer's data."""
-        result = check_rbac("get_customer", {"customer_id": "cust_002"}, operator_context)
-        assert result is None
-
-    def test_operator_denied_write_tools(self, operator_context):
-        """Operator cannot access write tools."""
-        result = check_rbac("add_product", {}, operator_context)
+    def test_customer_cannot_use_add_product(self):
+        ctx = {"role": "customer", "user_id": "cust_001"}
+        result = check_rbac("add_product", {"name": "Test"}, ctx)
         assert result is not None
         assert result["error"] == "access_denied"
 
-    def test_admin_all_tools_allowed(self, admin_context):
-        """Admin can access all tools."""
-        all_tools = ["get_product", "list_products", "search_products",
-                     "get_customer", "get_order", "get_customer_orders",
-                     "add_product", "update_product"]
-        for tool in all_tools:
-            result = check_rbac(tool, {}, admin_context)
-            assert result is None, f"Admin should be allowed to use {tool}"
+    def test_operator_cannot_use_add_product(self):
+        ctx = {"role": "operator", "user_id": "op_001"}
+        result = check_rbac("add_product", {"name": "Test"}, ctx)
+        assert result is not None
+        assert result["error"] == "access_denied"
+
+    def test_operator_can_use_list_customers(self):
+        ctx = {"role": "operator", "user_id": "op_001"}
+        result = check_rbac("list_customers", {}, ctx)
+        assert result is None  # None = allowed
+
+    def test_admin_can_use_add_product(self):
+        ctx = {"role": "admin", "user_id": "admin_001"}
+        result = check_rbac("add_product", {"name": "Test", "price": 9.99}, ctx)
+        assert result is None
+
+    def test_admin_can_use_all_tools(self):
+        ctx = {"role": "admin", "user_id": "admin_001"}
+        for tool in TOOLS_BY_ROLE["admin"]:
+            result = check_rbac(tool, {}, ctx)
+            assert result is None, f"Admin should have access to {tool}"
+
+    def test_unknown_role_defaults_to_no_access(self):
+        ctx = {"role": "unknown_role", "user_id": "x"}
+        result = check_rbac("get_product", {}, ctx)
+        assert result is not None
+        assert result["error"] == "access_denied"
 
 
-class TestToolCallsWithRBAC:
-    """Tests for tool calls with RBAC enforcement."""
+class TestRBACDataOwnership:
+    """Customer role data ownership enforcement."""
 
-    @pytest.mark.asyncio
-    async def test_customer_get_own_order(self, customer_context):
-        """Customer can get their own order."""
-        result = await call_tool("get_order", {
-            "order_id": "ord_001",
-            "_user_context": customer_context
-        })
-        response = json.loads(result[0].text)
-        assert "error" not in response
-        assert response["order_id"] == "ord_001"
+    def test_customer_can_access_own_profile(self):
+        ctx = {"role": "customer", "user_id": "cust_001"}
+        result = check_rbac("get_customer", {"customer_id": "cust_001"}, ctx)
+        assert result is None
 
-    @pytest.mark.asyncio
-    async def test_customer_denied_other_order(self, customer_context):
-        """Customer cannot get another customer's order."""
-        result = await call_tool("get_order", {
-            "order_id": "ord_002",  # belongs to cust_002
-            "_user_context": customer_context
-        })
-        response = json.loads(result[0].text)
-        assert response["error"] == "access_denied"
+    def test_customer_cannot_access_other_profile(self):
+        ctx = {"role": "customer", "user_id": "cust_001"}
+        result = check_rbac("get_customer", {"customer_id": "cust_002"}, ctx)
+        assert result is not None
+        assert result["error"] == "access_denied"
+        assert "own profile" in result["message"]
 
-    @pytest.mark.asyncio
-    async def test_customer_denied_add_product(self, customer_context):
-        """Customer cannot add products."""
-        result = await call_tool("add_product", {
-            "name": "Hacked Product",
-            "category": "Hack",
-            "price": 0.01,
-            "description": "Should not work",
-            "_user_context": customer_context
-        })
-        response = json.loads(result[0].text)
-        assert response["error"] == "access_denied"
+    def test_customer_can_access_own_orders(self):
+        ctx = {"role": "customer", "user_id": "cust_001"}
+        result = check_rbac("get_customer_orders", {"customer_id": "cust_001"}, ctx)
+        assert result is None
 
-    @pytest.mark.asyncio
-    async def test_operator_get_any_order(self, operator_context):
-        """Operator can get any customer's order."""
-        result = await call_tool("get_order", {
-            "order_id": "ord_002",
-            "_user_context": operator_context
-        })
-        response = json.loads(result[0].text)
-        assert "error" not in response
-        assert response["order_id"] == "ord_002"
+    def test_customer_cannot_access_other_orders(self):
+        ctx = {"role": "customer", "user_id": "cust_001"}
+        result = check_rbac("get_customer_orders", {"customer_id": "cust_002"}, ctx)
+        assert result is not None
+        assert result["error"] == "access_denied"
 
-    @pytest.mark.asyncio
-    async def test_operator_get_any_customer(self, operator_context):
-        """Operator can get any customer."""
-        result = await call_tool("get_customer", {
-            "customer_id": "cust_002",
-            "_user_context": operator_context
-        })
-        response = json.loads(result[0].text)
-        assert "error" not in response
-        assert response["customer_id"] == "cust_002"
+    @patch("shop_mcp_server.server.data")
+    def test_customer_cannot_access_other_customer_order(self, mock_data):
+        mock_data.get_order.return_value = {"order_id": "ORD-999", "customer_id": "cust_002"}
+        ctx = {"role": "customer", "user_id": "cust_001"}
+        result = check_rbac("get_order", {"order_id": "ORD-999"}, ctx)
+        assert result is not None
+        assert result["error"] == "access_denied"
+        assert "own orders" in result["message"]
 
-    @pytest.mark.asyncio
-    async def test_admin_add_product(self, admin_context):
-        """Admin can add products."""
-        result = await call_tool("add_product", {
-            "name": "Test Product",
-            "category": "Test",
-            "price": 49.99,
-            "description": "Test description",
-            "_user_context": admin_context
-        })
-        response = json.loads(result[0].text)
-        assert "error" not in response
-        assert response["name"] == "Test Product"
-        assert "product_id" in response
+    @patch("shop_mcp_server.server.data")
+    def test_customer_can_access_own_order(self, mock_data):
+        mock_data.get_order.return_value = {"order_id": "ORD-001", "customer_id": "cust_001"}
+        ctx = {"role": "customer", "user_id": "cust_001"}
+        result = check_rbac("get_order", {"order_id": "ORD-001"}, ctx)
+        assert result is None
 
+    def test_operator_can_access_any_customer(self):
+        ctx = {"role": "operator", "user_id": "op_001"}
+        result = check_rbac("get_customer", {"customer_id": "cust_999"}, ctx)
+        assert result is None
 
-class TestToolCallsBasic:
-    """Tests for basic tool functionality (without RBAC focus)."""
-
-    @pytest.mark.asyncio
-    async def test_get_product(self, admin_context):
-        """Get product returns correct data."""
-        result = await call_tool("get_product", {
-            "product_id": "prod_001",
-            "_user_context": admin_context
-        })
-        response = json.loads(result[0].text)
-        assert response["name"] == "Nike Air Max 90"
-
-    @pytest.mark.asyncio
-    async def test_list_products(self, admin_context):
-        """List products returns array."""
-        result = await call_tool("list_products", {
-            "limit": 5,
-            "_user_context": admin_context
-        })
-        response = json.loads(result[0].text)
-        assert isinstance(response, list)
-        assert len(response) == 5
-
-    @pytest.mark.asyncio
-    async def test_search_products(self, admin_context):
-        """Search products returns matches."""
-        result = await call_tool("search_products", {
-            "query": "Nike",
-            "_user_context": admin_context
-        })
-        response = json.loads(result[0].text)
-        assert isinstance(response, list)
-        assert len(response) > 0
-
-    @pytest.mark.asyncio
-    async def test_get_customer_orders(self, admin_context):
-        """Get customer orders returns all orders."""
-        result = await call_tool("get_customer_orders", {
-            "customer_id": "cust_001",
-            "_user_context": admin_context
-        })
-        response = json.loads(result[0].text)
-        assert isinstance(response, list)
-        assert len(response) == 3  # Alice has 3 orders
+    def test_operator_can_access_any_orders(self):
+        ctx = {"role": "operator", "user_id": "op_001"}
+        result = check_rbac("get_customer_orders", {"customer_id": "cust_999"}, ctx)
+        assert result is None

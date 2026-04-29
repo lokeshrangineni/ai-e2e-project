@@ -38,7 +38,7 @@ INJECTION_PATTERNS = [
     r"disregard (your|all|previous)",
     r"new persona",
     r"jailbreak",
-    r"DAN mode",
+    r"dan mode",
 ]
 
 OFF_TOPIC_PATTERNS = [
