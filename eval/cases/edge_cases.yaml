@@ -1,0 +1,116 @@
+# Edge Cases — Boundary conditions and unusual inputs
+# Tests behavior at the extremes of expected usage.
+
+- id: empty_message
+  description: Empty string input (API returns error — this is expected behavior)
+  input: " "
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_not_contains:
+      - "traceback"
+      - "Exception"
+
+- id: single_word
+  description: Single word input
+  input: "shoes"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_not_contains:
+      - "Blocked by"
+      - "error"
+
+- id: special_characters
+  description: Input with special characters
+  input: "Do you have products for <$100> & free shipping?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_not_contains:
+      - "Blocked by"
+      - "error"
+      - "traceback"
+
+- id: unicode_input
+  description: Input with unicode characters
+  input: "Do you have any products like café accessories or résumé holders?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_not_contains:
+      - "error"
+      - "traceback"
+      - "Exception"
+
+- id: repeated_question
+  description: Same question asked in different phrasing
+  input: "Products. What products. Show products. List products."
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_not_contains:
+      - "Blocked by"
+      - "error"
+
+- id: nonexistent_product
+  description: Asking about a product that doesn't exist
+  input: "Do you sell flying cars?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_contains_any:
+      - "don't"
+      - "not"
+      - "unfortunately"
+      - "available"
+      - "carry"
+      - "offer"
+    output_not_contains:
+      - "Blocked by"
+
+- id: nonexistent_order
+  description: Asking about an order that doesn't exist for this customer
+  input: "What is the status of order ord_999?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_not_contains:
+      - "Blocked by"
+      - "traceback"
+      - "Exception"
+
+- id: mixed_intent
+  description: Message with both valid shopping and off-topic elements
+  input: "I want to buy shoes, also what's the weather like?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    # The agent should handle the shopping part and redirect on weather
+    blocked: false
+    output_not_contains:
+      - "error"
+      - "traceback"

@@ -1,0 +1,76 @@
+name: Nightly Eval (Golden Set)
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # 6 AM UTC daily
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag for Langfuse comparison'
+        required: false
+        default: ''
+      category:
+        description: 'Run only a specific category (leave empty for all)'
+        required: false
+        default: ''
+
+jobs:
+  golden-set-eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install backend dependencies
+        working-directory: shop-backend-api
+        run: uv sync
+
+      - name: Install MCP server dependencies
+        working-directory: mcp-server
+        run: uv sync
+
+      - name: Install eval dependencies
+        working-directory: eval
+        run: uv pip install --system -r <(uv pip compile pyproject.toml)
+
+      - name: Install eval package deps directly
+        run: pip install pytest pytest-asyncio pyyaml langfuse
+
+      - name: Run golden set eval
+        working-directory: eval
+        env:
+          ANTHROPIC_VERTEX_PROJECT_ID: ${{ secrets.ANTHROPIC_VERTEX_PROJECT_ID }}
+          CLOUD_ML_REGION: ${{ secrets.CLOUD_ML_REGION }}
+          LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+          LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+          LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
+          NEMO_GUARDRAILS_ENABLED: ${{ secrets.NEMO_GUARDRAILS_ENABLED || 'false' }}
+          GUARDIAN_MODEL_ID: ${{ secrets.GUARDIAN_MODEL_ID || 'claude-haiku-4-5@20251001' }}
+          GUARDIAN_REGION: ${{ secrets.GUARDIAN_REGION || 'us-east5' }}
+        run: |
+          TAG="${{ github.event.inputs.tag || format('nightly-{0}', github.run_number) }}"
+          CATEGORY="${{ github.event.inputs.category }}"
+          
+          ARGS="--tag $TAG --verbose"
+          if [ -n "$CATEGORY" ]; then
+            ARGS="$ARGS --category $CATEGORY"
+          fi
+          
+          python run_eval.py $ARGS
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results-${{ github.run_number }}
+          path: eval/results/
+          retention-days: 30

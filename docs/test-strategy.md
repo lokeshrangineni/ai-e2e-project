@@ -39,15 +39,15 @@ Traditional software has the well-known test pyramid (unit → integration → e
 ```
                     ▲
                    / \
-                  / 5  \     Production monitoring & drift detection
-                 /───────\
-                /    4    \    Human evaluation (annotation queues)
-               /───────────\
-              /      3      \   LLM-as-judge (automated quality scoring)
-             /───────────────\
-            /       2        \   Golden set evals (deterministic + heuristic)
-           /──────────────────\
-          /        1          \   Traditional unit & integration tests
+                  / 5 \     Production monitoring & drift detection
+                 /─────\
+                /   4   \    Human evaluation (annotation queues)
+               /─────────\
+              /     3     \   LLM-as-judge (automated quality scoring)
+             /─────────────\
+            /       2       \   Golden set evals (deterministic + heuristic)
+           /─────────────────\
+          /         1         \   Traditional unit & integration tests
          /─────────────────────\
 ```
 
@@ -491,16 +491,16 @@ The only thing you use the Langfuse UI for is **viewing results** — the setup 
 
 | Layer | Status | Priority | What to build |
 |---|---|---|---|
-| 1 - Unit/integration tests | Not yet built | **High** | Test guardrail regex, RBAC tool filtering, API contract |
-| 2 - Golden set evals | Not yet built | **High** | YAML test cases + pytest runner (§13 deliverable) |
+| 1 - Unit/integration tests | **Done** | **High** | Guardrail regex, RBAC tool filtering, config loading |
+| 2 - Golden set evals | **Done** | **High** | 47 YAML test cases + Langfuse Experiment runner |
 | 3 - LLM-as-judge | Not yet built | Medium | Add after golden set works; use Langfuse managed evaluators |
 | 4 - Human eval | Manual (ad-hoc) | Low | Formalize with Langfuse annotation queues |
 | 5 - Production monitoring | Langfuse traces flowing | **Partially done** | Add dashboards, alerting |
 
 ### Recommended implementation order
 
-1. **Layer 1** — Unit tests for guardrails, RBAC, config (fast, no LLM calls, CI-friendly)
-2. **Layer 2** — Golden set eval with ~30 cases covering all roles and guardrail scenarios
+1. **Layer 1** — Unit tests for guardrails, RBAC, config (fast, no LLM calls, CI-friendly) ✅
+2. **Layer 2** — Golden set eval with 47 cases covering all roles and guardrail scenarios ✅
 3. **Layer 5** — Langfuse dashboards for latency/cost/error monitoring (partially in place)
 4. **Layer 3** — LLM-as-judge for response quality (nice-to-have)
 5. **Layer 4** — Human annotation queue (when the team grows)
@@ -519,6 +519,159 @@ Use this table to decide which eval approach fits your situation:
 | Care about response quality/tone | Layer 3 (LLM-as-judge) | Layer 4 to calibrate the judge |
 | Have a large team / compliance needs | All layers | Formal annotation workflows (Layer 4) |
 | Budget-constrained | Layer 1 (free) + Layer 2 (cheap) | Layer 3 only when needed |
+
+---
+
+## Running the Evals (Hands-on Guide)
+
+This section explains how to run the Layer 1 and Layer 2 tests that are already implemented in this project.
+
+### Layer 1: Unit Tests (No LLM Required)
+
+These run in CI on every commit and take seconds. No API keys or external services needed.
+
+```bash
+# Backend API tests (guardrails regex, config loading)
+cd shop-backend-api
+uv run pytest tests/ -v
+
+# MCP server tests (RBAC, data access)
+cd mcp-server
+uv run pytest tests/ -v
+```
+
+**What they cover:**
+- Regex guardrail patterns (injection detection, off-topic detection)
+- Input length limits
+- Config loading and environment variable parsing
+- RBAC tool filtering per role (customer, operator, admin)
+- Data ownership enforcement
+
+**CI:** Runs automatically via `.github/workflows/tests.yml` on every push.
+
+### Layer 2: Golden Set Evals (Real LLM Required)
+
+These run the actual agent end-to-end with real Claude API calls and persist results in Langfuse for comparison.
+
+#### Prerequisites
+
+- Vertex AI credentials configured (`ANTHROPIC_VERTEX_PROJECT_ID` env var)
+- `uv` installed (MCP server uses it)
+- Langfuse instance running (keys in `shop-backend-api/.env`)
+
+#### Running
+
+```bash
+cd eval/
+
+# Run all 47 cases with a named tag (recommended)
+python run_eval.py --tag "baseline-v1"
+
+# Run a specific category only
+python run_eval.py --tag "test-injection" --category guardrail_injection
+
+# Run without a tag (auto-generates timestamp-based name)
+python run_eval.py
+
+# Verbose mode — shows details for failures
+python run_eval.py --tag "debug-run" --verbose
+```
+
+#### What happens when you run
+
+1. **Dataset creation** — The runner creates (or reuses) a Langfuse dataset called `shopchat-golden-set` with all 47 test cases
+2. **Agent initialization** — Starts the LangGraph agent with MCP tools
+3. **Experiment execution** — Sends each test case through the real agent (Claude Sonnet + NeMo Guardrails + MCP tools)
+4. **Evaluation** — Runs two evaluators on each response:
+   - `eval_pass` — all assertions pass (contains, not-contains, blocked status)
+   - `blocked_correct` — guardrail blocked/allowed matches expectation
+5. **Results persisted** — Scores stored in Langfuse under the dataset
+
+#### Where to see results in Langfuse
+
+Navigate to: **Datasets** → `shopchat-golden-set`
+
+You'll see all experiment runs listed:
+```
+shopchat-golden-set
+  ├── baseline-v1        ← first run
+  ├── baseline-v2        ← second run
+  └── after-model-upgrade ← future comparison
+```
+
+Click **Compare runs** to see scores side-by-side. Click into any item to see the full input → output → scores for that test case.
+
+#### Test case categories (47 total)
+
+| Category | File | Cases | What it validates |
+|----------|------|-------|-------------------|
+| Happy path | `eval/cases/happy_path.yaml` | 6 | Products, orders, greetings |
+| RBAC | `eval/cases/rbac.yaml` | 8 | Role-based access (allowed + blocked) |
+| Injection | `eval/cases/guardrail_injection.yaml` | 8 | Prompt injection attempts caught |
+| Off-topic | `eval/cases/guardrail_off_topic.yaml` | 7 | Non-shopping queries refused |
+| Safe pass-through | `eval/cases/safe_passthrough.yaml` | 10 | Legitimate queries NOT false-positived |
+| Edge cases | `eval/cases/edge_cases.yaml` | 8 | Boundaries, special chars, empty input |
+
+#### Adding new test cases
+
+Edit or create YAML files in `eval/cases/`:
+
+```yaml
+- id: my_new_test_case
+  description: What this tests
+  input: "The message to send to the agent"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_contains_any:
+      - "expected keyword"
+    output_not_contains:
+      - "should not appear"
+```
+
+Available assertions:
+- `blocked: true/false` — was the response blocked by guardrails?
+- `output_contains: "text"` — response includes exact substring (case-insensitive)
+- `output_contains_any: [...]` — response includes at least one from the list
+- `output_not_contains: [...]` — response must NOT include any of these
+
+#### Comparing model upgrades
+
+This is the primary use case for golden set evals:
+
+```bash
+# Step 1: Establish baseline with current model
+python run_eval.py --tag "sonnet-4-baseline"
+
+# Step 2: Change MODEL_ID in .env to the new model
+# MODEL_ID=claude-haiku-4-5@20251001
+
+# Step 3: Run again
+python run_eval.py --tag "haiku-comparison"
+
+# Step 4: Compare in Langfuse UI
+# Datasets → shopchat-golden-set → Compare runs
+# See which cases regressed, stayed the same, or improved
+```
+
+#### Cost and duration
+
+- **47 cases × ~1-2 LLM calls each** ≈ $0.20-0.50 per full run
+- **Duration:** ~30 seconds (most time is NeMo guardrail Haiku calls)
+- **With NeMo disabled:** Guardrail cases complete in <1ms (regex only)
+
+#### CI: Nightly eval workflow
+
+A GitHub Actions workflow (`.github/workflows/eval-nightly.yml`) runs the full suite on a daily schedule or on-demand trigger. Configure these secrets in GitHub:
+
+- `ANTHROPIC_VERTEX_PROJECT_ID`
+- `CLOUD_ML_REGION`
+- `LANGFUSE_PUBLIC_KEY`
+- `LANGFUSE_SECRET_KEY`
+- `LANGFUSE_HOST`
 
 ---
 

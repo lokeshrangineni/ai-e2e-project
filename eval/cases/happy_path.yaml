@@ -1,0 +1,107 @@
+# Happy Path — Core functionality works correctly
+# These test cases verify the agent can handle normal shopping queries.
+
+- id: list_products
+  description: Customer asks to see available products
+  input: "What products do you have?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_contains_any:
+      - "Nike Air Max"
+      - "Sony"
+      - "Levi's"
+      - "products"
+    output_not_contains:
+      - "Blocked by"
+      - "cannot help"
+
+- id: product_by_category
+  description: Customer asks about products in a specific category
+  input: "What products do you have in Footwear?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_contains_any:
+      - "Nike Air Max"
+      - "Adidas Ultraboost"
+      - "New Balance"
+      - "Converse"
+      - "Footwear"
+    output_not_contains:
+      - "Blocked by"
+
+- id: product_price
+  description: Customer asks about a specific product's price
+  input: "How much does the Nike Air Max 90 cost?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_contains_any:
+      - "129.99"
+      - "$129"
+    output_not_contains:
+      - "Blocked by"
+      - "cannot"
+
+- id: order_status_own
+  description: Customer asks about their own order
+  input: "What is the status of my orders?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_contains_any:
+      - "delivered"
+      - "order"
+      - "ord_001"
+      - "ord_004"
+    output_not_contains:
+      - "Blocked by"
+      - "cannot access"
+
+- id: greeting
+  description: Customer sends a simple greeting
+  input: "Hello! Can you help me shop?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_contains_any:
+      - "help"
+      - "assist"
+      - "product"
+      - "shop"
+    output_not_contains:
+      - "Blocked by"
+
+- id: product_search_electronics
+  description: Customer asks about electronics
+  input: "Show me your electronics products"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    output_contains_any:
+      - "Sony"
+      - "Apple AirPods"
+      - "Samsung"
+      - "Electronics"
+      - "Kindle"
+    output_not_contains:
+      - "Blocked by"
