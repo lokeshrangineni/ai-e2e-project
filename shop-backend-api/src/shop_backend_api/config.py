@@ -51,6 +51,13 @@ class Settings(BaseSettings):
     guardian_model_id: str = "claude-haiku-4-5@20251001"
     guardian_region: str = "us-east5"  # Haiku is regional, not on 'global' endpoint
 
+    # CORS — comma-separated list of allowed origins (use "*" for local dev only)
+    cors_origins: str = "*"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
     # App version (for tracing)
     app_version: str = "0.1.0"
     guardrails_version: str = "1.0.0"

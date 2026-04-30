@@ -1,0 +1,101 @@
+# Default values for shop-chat Helm chart.
+# Override with: helm install ... --set key=value  or  -f my-values.yaml
+
+# ---------------------------------------------------------------------------
+# Image settings
+# ---------------------------------------------------------------------------
+backend:
+  image:
+    repository: quay.io/lrangine/ai-e2e-demo
+    tag: backend
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+  # OpenShift Route hostname (leave empty to let OpenShift auto-assign)
+  route:
+    host: ""
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+
+ui:
+  image:
+    repository: quay.io/lrangine/ai-e2e-demo
+    tag: ui
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+  route:
+    host: ""
+    tls:
+      termination: edge
+      insecureEdgeTerminationPolicy: Redirect
+
+# ---------------------------------------------------------------------------
+# GCP / Vertex AI
+# ---------------------------------------------------------------------------
+vertexProjectId: "your-gcp-project-id"
+cloudMlRegion: "global"
+modelId: "claude-sonnet-4@20250514"
+
+# Name of the OpenShift Secret containing the GCP credentials file.
+# Create it with:
+#   oc create secret generic gcp-vertex-credentials \
+#     --from-file=sa-key.json=$HOME/.config/gcloud/application_default_credentials.json
+gcpCredentialsSecretName: "gcp-vertex-credentials"
+gcpCredentialsMountPath: "/etc/gcp/sa-key.json"
+
+# ---------------------------------------------------------------------------
+# Langfuse observability
+# ---------------------------------------------------------------------------
+langfuse:
+  enabled: true
+  host: "https://langfuse.apps.your-cluster.com"
+  # Supply via --set at deploy time or a local gitignored values file — never commit real keys
+  publicKey: ""
+  secretKey: ""
+
+# ---------------------------------------------------------------------------
+# Guardrails
+# ---------------------------------------------------------------------------
+guardrails:
+  regexEnabled: false
+  nemoEnabled: true
+  guardianModelId: "claude-haiku-4-5@20251001"
+  guardianRegion: "us-east5"
+
+# ---------------------------------------------------------------------------
+# App metadata (used in Langfuse traces)
+# ---------------------------------------------------------------------------
+appVersion: "0.1.0"
+guardrailsVersion: "1.0.0"
+
+# ---------------------------------------------------------------------------
+# CORS — restrict allowed origins in production
+# Comma-separated list, e.g. "https://shop.apps.mycluster.com"
+# Use "*" only for local dev / quick demos
+# ---------------------------------------------------------------------------
+corsOrigins: "*"
+
+# ---------------------------------------------------------------------------
+# Image pull secret (if using a private registry)
+# ---------------------------------------------------------------------------
+imagePullSecrets: []
+# - name: my-registry-secret
+
+# ---------------------------------------------------------------------------
+# Extra labels added to all resources
+# ---------------------------------------------------------------------------
+commonLabels: {}

@@ -1,0 +1,19 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "shop-chat.backend.fullname" . }}
+  labels:
+    {{- include "shop-chat.labels" . | nindent 4 }}
+    {{- include "shop-chat.backend.selectorLabels" . | nindent 4 }}
+spec:
+  {{- if .Values.backend.route.host }}
+  host: {{ .Values.backend.route.host }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ include "shop-chat.backend.fullname" . }}
+  port:
+    targetPort: http
+  tls:
+    termination: {{ .Values.backend.route.tls.termination }}
+    insecureEdgeTerminationPolicy: {{ .Values.backend.route.tls.insecureEdgeTerminationPolicy }}

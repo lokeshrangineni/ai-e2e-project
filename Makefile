@@ -1,7 +1,12 @@
 # ShopChat — Developer Commands
 # Usage: make <target>
 
-.PHONY: help test test-backend test-mcp lint-ui eval eval-category eval-verbose start-backend
+REGISTRY   := quay.io/lrangine/ai-e2e-demo
+VERSION    := $(shell cat VERSION)
+NEXT_VER   := $(shell echo $$(($(VERSION) + 1)))
+
+.PHONY: help test test-backend test-mcp lint-ui eval eval-category eval-verbose start-backend \
+        docker-build docker-push docker-release
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -47,3 +52,33 @@ start-backend: ## Start the backend API server
 
 start-ui: ## Start the UI dev server
 	cd shop-ui && npm run dev
+
+# ─────────────────────────────────────────────────
+# Container builds (quay.io/lrangine/ai-e2e-demo)
+# ─────────────────────────────────────────────────
+
+docker-build: ## Build backend and UI images tagged with current VERSION (v$(VERSION))
+	@echo "Building v$(VERSION)..."
+	podman build --platform linux/amd64 \
+		-f shop-backend-api/Dockerfile \
+		-t $(REGISTRY):backend \
+		-t $(REGISTRY):backend-v$(VERSION) \
+		.
+	podman build --platform linux/amd64 \
+		-f shop-ui/Dockerfile \
+		-t $(REGISTRY):ui \
+		-t $(REGISTRY):ui-v$(VERSION) \
+		shop-ui/
+	@echo "Built: $(REGISTRY):backend-v$(VERSION) and $(REGISTRY):ui-v$(VERSION)"
+
+docker-push: ## Push current VERSION images to quay.io
+	@echo "Pushing v$(VERSION)..."
+	podman push $(REGISTRY):backend
+	podman push $(REGISTRY):backend-v$(VERSION)
+	podman push $(REGISTRY):ui
+	podman push $(REGISTRY):ui-v$(VERSION)
+	@echo "Pushed v$(VERSION) to quay.io"
+
+docker-release: docker-build docker-push ## Build, push, then auto-increment VERSION for next release
+	@echo "$(NEXT_VER)" > VERSION
+	@echo "Released v$(VERSION) → VERSION file bumped to $(NEXT_VER)"

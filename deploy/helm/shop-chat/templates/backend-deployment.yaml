@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "shop-chat.backend.fullname" . }}
+  labels:
+    {{- include "shop-chat.labels" . | nindent 4 }}
+    {{- include "shop-chat.backend.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicas }}
+  selector:
+    matchLabels:
+      {{- include "shop-chat.backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "shop-chat.labels" . | nindent 8 }}
+        {{- include "shop-chat.backend.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Required for OpenShift: drop all capabilities, run as non-root
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: backend
+          image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          # Load non-secret config from ConfigMap
+          envFrom:
+            - configMapRef:
+                name: {{ include "shop-chat.backend.fullname" . }}-config
+          # Load Langfuse secrets
+          {{- if or .Values.langfuse.publicKey .Values.langfuse.secretKey }}
+          env:
+            - name: LANGFUSE_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "shop-chat.backend.fullname" . }}-secrets
+                  key: LANGFUSE_PUBLIC_KEY
+            - name: LANGFUSE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "shop-chat.backend.fullname" . }}-secrets
+                  key: LANGFUSE_SECRET_KEY
+          {{- end }}
+          # GCP credentials file mount
+          volumeMounts:
+            - name: gcp-credentials
+              mountPath: /etc/gcp
+              readOnly: true
+          # Readiness probe: wait for FastAPI startup (agent init takes ~10s)
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+            successThreshold: 1
+          # Liveness probe: restart if unhealthy
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.backend.resources | nindent 12 }}
+      volumes:
+        - name: gcp-credentials
+          secret:
+            secretName: {{ .Values.gcpCredentialsSecretName }}

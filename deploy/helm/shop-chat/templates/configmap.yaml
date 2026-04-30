@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "shop-chat.backend.fullname" . }}-config
+  labels:
+    {{- include "shop-chat.labels" . | nindent 4 }}
+data:
+  # API
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  DEBUG: "false"
+
+  # Google Vertex AI
+  ANTHROPIC_VERTEX_PROJECT_ID: {{ .Values.vertexProjectId | quote }}
+  CLOUD_ML_REGION: {{ .Values.cloudMlRegion | quote }}
+  MODEL_ID: {{ .Values.modelId | quote }}
+
+  # GCP credentials file path (mounted from Secret)
+  GOOGLE_APPLICATION_CREDENTIALS: {{ .Values.gcpCredentialsMountPath | quote }}
+
+  # MCP Server paths (baked into the container image)
+  MCP_SERVER_DIR: "/app/mcp-server"
+  SHOP_DATA_DIR: "/app/data"
+  MCP_SERVER_COMMAND: "uv"
+  MCP_SERVER_NAME: "shop_mcp_server.server"
+
+  # Langfuse
+  LANGFUSE_ENABLED: {{ .Values.langfuse.enabled | quote }}
+  LANGFUSE_HOST: {{ .Values.langfuse.host | quote }}
+
+  # Guardrails
+  REGEX_GUARDRAILS_ENABLED: {{ .Values.guardrails.regexEnabled | quote }}
+  NEMO_GUARDRAILS_ENABLED: {{ .Values.guardrails.nemoEnabled | quote }}
+  GUARDIAN_MODEL_ID: {{ .Values.guardrails.guardianModelId | quote }}
+  GUARDIAN_REGION: {{ .Values.guardrails.guardianRegion | quote }}
+
+  # App metadata
+  APP_VERSION: {{ .Values.appVersion | quote }}
+  GUARDRAILS_VERSION: {{ .Values.guardrailsVersion | quote }}
+
+  # CORS
+  CORS_ORIGINS: {{ .Values.corsOrigins | quote }}

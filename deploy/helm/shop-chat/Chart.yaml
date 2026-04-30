@@ -1,0 +1,14 @@
+apiVersion: v2
+name: shop-chat
+description: ShopChat AI assistant — FastAPI backend (LangGraph + MCP + Claude via Vertex AI) and React/nginx frontend
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - ai
+  - langchain
+  - langgraph
+  - mcp
+  - openshift
+maintainers:
+  - name: your-name
