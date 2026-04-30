@@ -1,16 +1,19 @@
 # ShopChat — AI-Powered Shopping Assistant
 
-A production-oriented learning project that demonstrates how to build, secure, observe, and deploy an **LLM-backed chatbot** on **OpenShift**. The assistant answers questions about products, orders, and customers using **Claude on Google Cloud Vertex AI**, with tool access via the **Model Context Protocol (MCP)**, multi-layer guardrails including **NVIDIA NeMo Guardrails**, observability through **Langfuse**, and agent orchestration with **LangGraph**.
+> Building an AI chatbot is easy. Building one that's **secure, observable, tested, and production-ready** is hard. This project does both — end to end.
 
-## Why This Project Exists
+ShopChat is a reference implementation of an **enterprise-grade LLM application** deployed on OpenShift. It connects a React frontend to a Claude-powered agent that can browse products, look up orders, and manage customers — all with role-based access control, multi-layer guardrails, full observability, and a golden-set eval suite.
 
-The goal is hands-on experience with the **AI application stack** and **shipping to production** — not perfecting a specific business schema or UI. It mirrors a real internal assistant over enterprise data, covering:
+If you're looking for a working example of how the modern AI stack fits together — from streaming chat to NeMo Guardrails to Langfuse experiments — this is it.
+
+## What You'll Find Here
 
 - **Streaming chat** (SSE) from a Python BFF to a React UI
-- **Tool-grounded answers** via MCP — the LLM calls structured tools instead of guessing
+- **Tool-grounded answers** via MCP — the LLM calls structured tools instead of hallucinating
 - **Role-based access control** — customer, operator, and admin roles with different tool visibility and data access
-- **Defence-in-depth guardrails** — regex, NeMo Guardrails (Colang policies), and LLM system prompt
-- **LLM observability** — traces, latency, token counts, and cost signals via Langfuse
+- **Defence-in-depth guardrails** — regex patterns, NVIDIA NeMo Guardrails (Colang policies), and role-aware system prompts
+- **LLM observability** — traces, latency, token counts, and cost tracked via Langfuse
+- **Golden set evals** — 47 automated test cases with Langfuse Experiments for model comparison
 - **OpenShift-ready** architecture with documented deployment patterns
 
 ---
@@ -70,18 +73,13 @@ ai-e2e-project/
 │   │   ├── observability.py  # Langfuse callback handler
 │   │   └── config.py         # All configuration via env vars
 │   └── guardrails_config/    # Colang policy files (per role)
-│       ├── customer/         # config.yml + main.co
-│       ├── operator/         # config.yml + main.co
-│       └── admin/            # config.yml + main.co
-├── mcp-server/               # MCP tool server
-│   └── src/shop_mcp_server/
-│       ├── server.py         # Tool definitions + RBAC enforcement
-│       └── data.py           # CSV data access layer
-├── data/                     # CSV data files
-│   ├── customers.csv
-│   ├── orders.csv
-│   ├── order_items.csv
-│   └── products.csv
+├── mcp-server/               # MCP tool server (RBAC-enforced tools)
+├── eval/                     # Layer 2 golden set evals (47 cases)
+│   ├── cases/                # YAML test case definitions
+│   └── run_eval.py           # Langfuse-integrated eval runner
+├── data/                     # Synthetic CSV data (customers, products, orders)
+├── docs/                     # Design docs (guardrails, observability, test strategy)
+├── Makefile                  # Common commands (test, eval, start)
 └── project-requirements.md   # Full requirements document
 ```
 
@@ -189,30 +187,17 @@ cp shop-backend-api/.env.example shop-backend-api/.env
 
 ## Guardrails (Defence in Depth)
 
-The application uses a three-layer guardrail architecture. Each layer is independently configurable and catches progressively subtler attacks.
+Three independently-configurable layers that catch progressively subtler attacks:
 
-| Layer | Type | Latency | Config | Catches |
-|---|---|---|---|---|
-| 1 | **Regex patterns** | ~0ms | `REGEX_GUARDRAILS_ENABLED` | Obvious injection keywords, off-topic patterns, input length abuse |
-| 2 | **NeMo Guardrails** (Colang + Claude Haiku) | ~200-500ms | `NEMO_GUARDRAILS_ENABLED` | Rephrased injection, jailbreaks, off-topic (LLM-classified), cross-customer probing |
-| 3 | **LLM system prompt** | Built-in | Always active | Role enforcement, RBAC at reasoning level, general policy |
+| Layer | Type | Latency | Catches |
+|---|---|---|---|
+| 1 | Regex patterns | ~0ms | Obvious injection keywords, off-topic patterns |
+| 2 | NeMo Guardrails (Colang + Haiku) | ~200-500ms | Rephrased injection, jailbreaks, off-topic |
+| 3 | LLM system prompt | Built-in | Role enforcement, RBAC at reasoning level |
 
-### How NeMo Guardrails works
+NeMo policies live in `guardrails_config/<role>/` as version-controlled Colang files — completely independent of the main LLM's system prompt.
 
-[NVIDIA NeMo Guardrails](https://github.com/NVIDIA/NeMo-Guardrails) enforces policies defined in **Colang** (`.co`) files — plain text, version-controlled, and completely independent of the main LLM's system prompt. Claude Sonnet never sees these policies and cannot bypass them.
-
-**Flow per request:**
-1. User message arrives at the `input_guardrail` node in LangGraph
-2. NeMo sends a policy prompt to **Claude Haiku** asking: "Should this message be blocked?" (yes/no)
-3. If Haiku answers "yes" → NeMo's deterministic engine fires the matching Colang flow → returns a canned refusal
-4. If Haiku answers "no" → message passes through to Claude Sonnet for normal processing
-
-**Per-role policies** live in `guardrails_config/`:
-- `customer/` — blocks off-topic, injection, jailbreak, cross-customer access, write attempts
-- `operator/` — blocks off-topic, injection, jailbreak, data modification attempts
-- `admin/` — only blocks injection and jailbreak (broadest access)
-
-To customize policies, edit the `config.yml` (prompt) and `main.co` (flow + refusal message) files. No code changes needed.
+See [docs/guardrails.md](docs/guardrails.md) for details.
 
 ---
 
@@ -245,16 +230,9 @@ RBAC is enforced at **three levels**:
 
 ## LLM Observability (Langfuse)
 
-When enabled, every chat request emits **Langfuse traces** including:
-- User message metadata
-- Model calls (latency, token counts)
-- Tool/MCP invocations
-- Guardrail decisions
-- Version tags: `model_id`, `app_version`, `guardrails_version`
+When enabled, every request emits traces (LLM calls, tool invocations, guardrail decisions, token counts, latency). Results are also used for storing golden set eval experiments.
 
-Langfuse can be run as:
-- **Cloud**: Sign up at [cloud.langfuse.com](https://cloud.langfuse.com) and set the API keys
-- **Self-hosted on OpenShift**: Deploy using the [langfuse-k8s Helm chart](https://github.com/langfuse/langfuse-k8s) with OpenShift support
+See [docs/langfuse-observability.md](docs/langfuse-observability.md) for integration details.
 
 ---
 

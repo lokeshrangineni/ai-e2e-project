@@ -10,6 +10,7 @@ MCP (Model Context Protocol) server providing tools for products, orders, and cu
 | `list_products` | List products (optional category filter) | All roles |
 | `search_products` | Search products by name/description | All roles |
 | `get_customer` | Get customer by ID | Operator, Admin (Customer: own only) |
+| `list_customers` | List all customers | Operator, Admin only |
 | `get_order` | Get order by ID with line items | Operator, Admin (Customer: own only) |
 | `get_customer_orders` | Get all orders for a customer | Operator, Admin (Customer: own only) |
 | `add_product` | Add new product | Admin only |
@@ -19,7 +20,7 @@ MCP (Model Context Protocol) server providing tools for products, orders, and cu
 
 ```bash
 cd mcp-server
-pip install -e .
+uv sync
 ```
 
 ## Usage
@@ -53,9 +54,8 @@ Add to `claude_desktop_config.json`:
 |----------|-------------|---------|
 | `SHOP_DATA_DIR` | Path to data directory containing CSV files | `../data` relative to package |
 
-## Development
+## Testing
 
 ```bash
-pip install -e ".[dev]"
-pytest
+uv run pytest tests/ -v
 ```
