@@ -48,7 +48,7 @@ cp .env.example .env       # configure (see root README for env var reference)
 uv run uvicorn shop_backend_api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The MCP server is spawned automatically as a subprocess — no separate start needed.
+The MCP server is spawned automatically as a subprocess — no separate start needed. This keeps local setup simple; see [Design Decisions](../README.md#design-decisions) in the root README for the subprocess vs. separate-service trade-off.
 
 - API: `http://localhost:8000`
 - Docs: `http://localhost:8000/docs`

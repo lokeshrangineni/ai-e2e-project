@@ -61,6 +61,34 @@ If you're looking for a working example of how the modern AI stack fits together
 
 ---
 
+## Design Decisions
+
+These are intentional simplifications made to keep the reference implementation easy to run locally. Each comes with a clear path to production.
+
+### MCP Server as a Subprocess
+
+The MCP server is spawned as a child process of the backend API rather than deployed as a standalone service.
+
+| | Subprocess (current) | Separate service (production) |
+|---|---|---|
+| **Startup** | Zero extra steps — starts with the API | Requires independent deploy and service discovery |
+| **Scaling** | Scales only with the API | Can be scaled independently (e.g. more MCP replicas for heavy tool load) |
+| **Isolation** | A crash in MCP can affect the API process | Full fault isolation |
+| **Latency** | stdio transport — sub-millisecond | Network hop adds latency |
+| **Ops overhead** | None | Separate container, health checks, routing |
+
+For a demo or small deployment the subprocess model is fine. Promote it to a separate service when you need independent scaling or stronger fault isolation.
+
+### Data in CSV Files
+
+Products, orders, and customers are stored as flat CSV files in `/data/`. In production, this would be a relational or document database (e.g. PostgreSQL), giving you real querying, transactions, and durability. The CSV approach keeps the project self-contained — no database to spin up, no migrations to run.
+
+### Hardcoded Users and Roles
+
+The user list and their roles are hardcoded in the UI's role selector. In production, identity and role assignment would come from an **IdP or SSO provider** (e.g. Keycloak, Okta, Azure AD) via OIDC/SAML, with JWT claims carrying the role. The backend already reads role from HTTP headers (`X-User-Role`), so plugging in real auth is a matter of replacing the header-injection in the frontend with a real token, and validating that token server-side.
+
+---
+
 ## Project Structure
 
 ```
