@@ -2,6 +2,28 @@
 
 FastAPI backend for ShopChat. Orchestrates a LangGraph agent with MCP tools, multi-layer guardrails, and Langfuse observability.
 
+## Screenshots
+
+**Welcome screen** — clean chat interface with a user switcher in the header for simulating different roles.
+
+![Welcome screen](../docs/screenshots/welcome-screen.png)
+
+**RBAC user switcher** — users are grouped by role (Customers, Operators, Admins). Switching users changes what the agent is allowed to see and do.
+
+![RBAC user switcher](../docs/screenshots/rbac-user-switcher.png)
+
+**Product search** — a customer asks about Footwear; the agent queries the MCP server and returns a structured product list.
+
+![Product search](../docs/screenshots/product-search.png)
+
+**RBAC in action (customer blocked)** — Alice (customer role) is blocked from viewing `ord_005` which belongs to another customer, but can see her own `ord_001`.
+
+![Order access blocked by RBAC](../docs/screenshots/rbac-order-blocked.png)
+
+**RBAC in action (admin access)** — Carol (admin role) can retrieve any order, including `ord_005`.
+
+![Admin full order access](../docs/screenshots/admin-order-access.png)
+
 ## Architecture
 
 ```
