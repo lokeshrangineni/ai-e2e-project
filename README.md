@@ -2,9 +2,11 @@
 
 > Building an AI chatbot is easy. Building one that's **secure, observable, tested, and production-ready** is hard. This project does both — end to end.
 
-ShopChat is a reference implementation of an **enterprise-grade LLM application** deployed on OpenShift. It connects a React frontend to a Claude-powered agent that can browse products, look up orders, and manage customers — all with role-based access control, multi-layer guardrails, full observability, and a golden-set eval suite.
+ShopChat is a reference implementation of an **enterprise-grade LLM application** deployed on OpenShift. It connects a React frontend to a Claude-powered agent that can browse products, look up orders, and manage customers — with data surfaced through **MCP (Model Context Protocol)** for structured, real-time backend access, **RBAC** woven into every layer from the API to agent tool permissions, multi-layer guardrails, full observability, and a golden-set eval suite.
 
 If you're looking for a working example of how the modern AI stack fits together — from streaming chat to NeMo Guardrails to Langfuse experiments — this is it.
+
+![RBAC in action — a customer is blocked from another user's order, while an admin can access it freely](docs/screenshots/rbac-order-blocked.png)
 
 ## What You'll Find Here
 
