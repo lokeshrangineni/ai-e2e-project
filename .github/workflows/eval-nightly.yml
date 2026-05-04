@@ -40,10 +40,7 @@ jobs:
 
       - name: Install eval dependencies
         working-directory: eval
-        run: uv pip install --system -r <(uv pip compile pyproject.toml)
-
-      - name: Install eval package deps directly
-        run: pip install pytest pytest-asyncio pyyaml langfuse
+        run: uv pip install --system .
 
       - name: Run golden set eval
         working-directory: eval
