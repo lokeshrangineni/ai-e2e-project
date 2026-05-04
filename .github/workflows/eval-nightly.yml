@@ -31,16 +31,14 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Install backend dependencies
-        working-directory: shop-backend-api
-        run: uv sync
+        run: uv pip install --system ./shop-backend-api
 
       - name: Install MCP server dependencies
         working-directory: mcp-server
         run: uv sync
 
       - name: Install eval dependencies
-        working-directory: eval
-        run: uv pip install --system .
+        run: uv pip install --system ./eval
 
       - name: Run golden set eval
         working-directory: eval
