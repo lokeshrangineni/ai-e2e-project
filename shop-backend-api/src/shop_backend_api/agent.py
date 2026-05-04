@@ -64,11 +64,17 @@ class ShopAgent:
                 location=settings.cloud_ml_region,
                 max_tokens=1024,
             )
-        else:
+        elif settings.anthropic_api_key:
             self.llm = ChatAnthropic(
                 model=settings.model_id,
                 api_key=settings.anthropic_api_key,
                 max_tokens=1024,
+            )
+        else:
+            raise RuntimeError(
+                "No LLM credentials configured. Set either:\n"
+                "  ANTHROPIC_VERTEX_PROJECT_ID (+ CLOUD_ML_REGION) for Vertex AI, or\n"
+                "  ANTHROPIC_API_KEY for direct Anthropic API access."
             )
         self.mcp_client = None
         self.tools = []
