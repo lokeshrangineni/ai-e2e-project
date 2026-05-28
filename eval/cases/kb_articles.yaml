@@ -1,0 +1,173 @@
+# KB Articles — Help Center retrieval works correctly
+# These test cases verify the agent uses KB tools for policy and help questions.
+
+- id: kb_return_policy
+  description: Customer asks how to return an item
+  input: "How do I return an item I bought?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    tools_called:
+      - search_kb_articles
+    output_contains_any:
+      - "30 days"
+      - "return"
+      - "refund"
+      - "My Orders"
+    output_not_contains:
+      - "Blocked by"
+      - "cannot help"
+
+- id: kb_shipping_times
+  description: Customer asks about shipping options and delivery times
+  input: "How long does shipping take?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    tools_called:
+      - search_kb_articles
+    output_contains_any:
+      - "5–7 business days"
+      - "Standard Shipping"
+      - "Express"
+      - "shipping"
+    output_not_contains:
+      - "Blocked by"
+
+- id: kb_free_shipping_threshold
+  description: Customer asks about free shipping
+  input: "Do you offer free shipping?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    tools_called:
+      - search_kb_articles
+    output_contains_any:
+      - "$50"
+      - "free"
+      - "shipping"
+    output_not_contains:
+      - "Blocked by"
+
+- id: kb_refund_timeline
+  description: Customer asks how long refunds take
+  input: "How long does it take to get my refund?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    tools_called:
+      - search_kb_articles
+    output_contains_any:
+      - "business days"
+      - "refund"
+      - "credit card"
+      - "store credit"
+    output_not_contains:
+      - "Blocked by"
+
+- id: kb_warranty_claim
+  description: Customer asks about product warranty
+  input: "How do I file a warranty claim?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    tools_called:
+      - search_kb_articles
+    output_contains_any:
+      - "warranty"
+      - "claim"
+      - "coverage"
+    output_not_contains:
+      - "Blocked by"
+
+- id: kb_payment_methods
+  description: Customer asks what payment methods are accepted
+  input: "What payment methods do you accept?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    tools_called:
+      - search_kb_articles
+    output_contains_any:
+      - "credit"
+      - "debit"
+      - "PayPal"
+      - "payment"
+    output_not_contains:
+      - "Blocked by"
+
+- id: kb_list_articles
+  description: Customer asks what help topics are available
+  input: "What topics can you help me with from the help center?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    tools_called:
+      - list_kb_articles
+    output_contains_any:
+      - "returns"
+      - "shipping"
+      - "warranty"
+      - "payment"
+      - "account"
+    output_not_contains:
+      - "Blocked by"
+
+- id: kb_operator_policy_lookup
+  description: Operator looks up return policy to help a customer
+  input: "What is the return window for electronics?"
+  context:
+    role: operator
+    user_id: op_001
+    user_name: Bob Smith
+  expect:
+    blocked: false
+    tools_called:
+      - search_kb_articles
+    output_contains_any:
+      - "15 days"
+      - "Electronics"
+      - "return"
+    output_not_contains:
+      - "Blocked by"
+
+- id: kb_damaged_item_policy
+  description: Customer asks what to do if they received a damaged item
+  input: "I received a damaged item. What should I do?"
+  context:
+    role: customer
+    user_id: cust_001
+    user_name: Alice Johnson
+  expect:
+    blocked: false
+    tools_called:
+      - search_kb_articles
+    output_contains_any:
+      - "48 hours"
+      - "damaged"
+      - "defective"
+      - "replacement"
+      - "refund"
+    output_not_contains:
+      - "Blocked by"

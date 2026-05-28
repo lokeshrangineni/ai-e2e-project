@@ -9,8 +9,11 @@ from typing import AsyncGenerator
 from fastapi import FastAPI, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
+
+from pathlib import Path
 
 from .config import settings
 from .agent import get_agent, cleanup_agent, UserContext
@@ -36,6 +39,11 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Demo KBA pages — served at /docs/ for the RAG ingestion demo
+_kba_dir = Path(settings.shop_data_dir) / "kba"
+if _kba_dir.exists():
+    app.mount("/docs", StaticFiles(directory=str(_kba_dir), html=True), name="kba_docs")
 
 # CORS middleware — origins controlled by CORS_ORIGINS env var
 app.add_middleware(

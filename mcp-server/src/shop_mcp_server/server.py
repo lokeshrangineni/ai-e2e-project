@@ -14,10 +14,12 @@ data = ShopData(os.environ.get("SHOP_DATA_DIR"))
 
 
 # RBAC configuration
+_KB_TOOLS = ["search_kb_articles", "get_kb_article", "list_kb_articles"]
+
 TOOLS_BY_ROLE = {
-    "customer": ["get_product", "list_products", "search_products", "get_customer", "get_order", "get_customer_orders"],
-    "operator": ["get_product", "list_products", "search_products", "get_customer", "get_order", "get_customer_orders", "list_customers"],
-    "admin": ["get_product", "list_products", "search_products", "get_customer", "get_order", "get_customer_orders", "add_product", "update_product", "list_customers"],
+    "customer": ["get_product", "list_products", "search_products", "get_customer", "get_order", "get_customer_orders"] + _KB_TOOLS,
+    "operator": ["get_product", "list_products", "search_products", "get_customer", "get_order", "get_customer_orders", "list_customers"] + _KB_TOOLS,
+    "admin": ["get_product", "list_products", "search_products", "get_customer", "get_order", "get_customer_orders", "add_product", "update_product", "list_customers"] + _KB_TOOLS,
 }
 
 
@@ -220,6 +222,56 @@ async def list_tools() -> list[Tool]:
                 "required": ["product_id"],
             },
         ),
+        Tool(
+            name="search_kb_articles",
+            description=(
+                "Search the ShopChat Help Center knowledge base for articles matching a query. "
+                "Use this for questions about returns, refunds, shipping, account management, "
+                "payment methods, and product warranties. Returns article summaries and links."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query (e.g. 'how do I return an item', 'shipping cost', 'warranty claim')",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of articles to return (default: 3)",
+                    },
+                },
+                "required": ["query"],
+            },
+        ),
+        Tool(
+            name="get_kb_article",
+            description=(
+                "Retrieve the full content of a specific Help Center article by its ID. "
+                "Use after search_kb_articles to get complete details for a relevant article."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "article_id": {
+                        "type": "string",
+                        "description": (
+                            "Article ID — one of: returns-and-refunds, shipping-policy, "
+                            "account-management, payment-methods, product-warranty"
+                        ),
+                    },
+                },
+                "required": ["article_id"],
+            },
+        ),
+        Tool(
+            name="list_kb_articles",
+            description="List all available Help Center articles with short summaries and tags.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            },
+        ),
     ]
 
 
@@ -289,6 +341,22 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         )
         if result is None:
             result = {"error": f"Product {arguments['product_id']} not found"}
+
+    elif name == "search_kb_articles":
+        result = data.search_kb_articles(
+            query=arguments["query"],
+            limit=arguments.get("limit", 3),
+        )
+        if not result:
+            result = {"message": "No help articles found matching your query."}
+
+    elif name == "get_kb_article":
+        result = data.get_kb_article(arguments["article_id"])
+        if result is None:
+            result = {"error": f"Article '{arguments['article_id']}' not found"}
+
+    elif name == "list_kb_articles":
+        result = data.list_kb_articles()
 
     else:
         result = {"error": f"Unknown tool: {name}"}

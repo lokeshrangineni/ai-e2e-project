@@ -1,8 +1,61 @@
 """Data layer for loading and querying shop data."""
 
 import os
+from html.parser import HTMLParser
 from pathlib import Path
 import pandas as pd
+
+
+class _TextExtractor(HTMLParser):
+    """Extract visible text from HTML, skipping style/script blocks."""
+
+    def __init__(self):
+        super().__init__()
+        self._parts: list[str] = []
+        self._skip = False
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("style", "script"):
+            self._skip = True
+
+    def handle_endtag(self, tag):
+        if tag in ("style", "script"):
+            self._skip = False
+
+    def handle_data(self, data):
+        if not self._skip:
+            stripped = data.strip()
+            if stripped:
+                self._parts.append(stripped)
+
+    def get_text(self) -> str:
+        return " ".join(self._parts)
+
+
+def _parse_kba_html(html: str) -> tuple[str, str]:
+    """Return (title, plain_text) from an article HTML string."""
+    import re
+
+    # Prefer the <h1> as the canonical title
+    h1 = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.IGNORECASE | re.DOTALL)
+    if h1:
+        title = re.sub(r"<[^>]+>", "", h1.group(1)).strip()
+    else:
+        t = re.search(r"<title[^>]*>(.*?)</title>", html, re.IGNORECASE | re.DOTALL)
+        title = t.group(1).strip() if t else ""
+
+    extractor = _TextExtractor()
+    extractor.feed(html)
+    return title, extractor.get_text()
+
+
+_KBA_TAGS: dict[str, list[str]] = {
+    "returns-and-refunds": ["Returns", "Refunds"],
+    "shipping-policy": ["Shipping", "Delivery"],
+    "account-management": ["Account", "Security"],
+    "payment-methods": ["Payments", "Billing"],
+    "product-warranty": ["Warranty", "Products"],
+}
 
 
 class ShopData:
@@ -13,6 +66,7 @@ class ShopData:
             data_dir = Path(__file__).parent.parent.parent.parent / "data"
         self.data_dir = Path(data_dir)
         self._load_data()
+        self._load_kba()
 
     def _load_data(self):
         """Load all CSV files into DataFrames."""
@@ -120,3 +174,74 @@ class ShopData:
     def _save_products(self):
         """Save products back to CSV."""
         self.products.to_csv(self.data_dir / "products.csv", index=False)
+
+    # ── Knowledge-base articles ──────────────────────────────────────────────
+
+    def _load_kba(self):
+        """Parse all HTML files in data/kba/ into an in-memory article list."""
+        self._kba_articles: list[dict] = []
+        kba_dir = self.data_dir / "kba"
+        if not kba_dir.exists():
+            return
+        for html_file in sorted(kba_dir.glob("*.html")):
+            if html_file.name == "index.html":
+                continue
+            article_id = html_file.stem
+            html_content = html_file.read_text(encoding="utf-8")
+            title, text = _parse_kba_html(html_content)
+            self._kba_articles.append({
+                "article_id": article_id,
+                "title": title,
+                "content": text,
+                "tags": _KBA_TAGS.get(article_id, []),
+                "url": f"/docs/{html_file.name}",
+            })
+
+    def search_kb_articles(self, query: str, limit: int = 5) -> list[dict]:
+        """Keyword search across KB article titles, tags, and content."""
+        terms = query.lower().split()
+        scored: list[tuple[int, dict]] = []
+        for article in self._kba_articles:
+            searchable = (
+                f"{article['title']} {' '.join(article['tags'])} {article['content']}"
+            ).lower()
+            score = sum(1 for term in terms if term in searchable)
+            if score > 0:
+                scored.append((score, article))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        results = []
+        for _, article in scored[:limit]:
+            summary = article["content"]
+            if len(summary) > 400:
+                summary = summary[:400] + "…"
+            results.append({
+                "article_id": article["article_id"],
+                "title": article["title"],
+                "summary": summary,
+                "tags": article["tags"],
+                "url": article["url"],
+            })
+        return results
+
+    def get_kb_article(self, article_id: str) -> dict | None:
+        """Return the full content of a KB article by its ID."""
+        for article in self._kba_articles:
+            if article["article_id"] == article_id:
+                return article
+        return None
+
+    def list_kb_articles(self) -> list[dict]:
+        """Return a summary listing of all KB articles."""
+        results = []
+        for article in self._kba_articles:
+            summary = article["content"]
+            if len(summary) > 200:
+                summary = summary[:200] + "…"
+            results.append({
+                "article_id": article["article_id"],
+                "title": article["title"],
+                "summary": summary,
+                "tags": article["tags"],
+                "url": article["url"],
+            })
+        return results
